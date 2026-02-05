@@ -11,16 +11,23 @@ The target parameters are found via optimization.
 Author: Sumanth Reddy Settipalli
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path for standalone execution
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import numpy as np
 from scipy.optimize import minimize, differential_evolution
 import json
-from pathlib import Path
 from tqdm import tqdm
 from concurrent.futures import ProcessPoolExecutor, as_completed
 import multiprocessing
 
-from three_layer_interphase import compute_3layer_properties
-from extended_interface import compute_effective_properties
+from src.physics.three_layer_interphase import compute_3layer_properties
+from src.physics.extended_interface import compute_effective_properties
 
 
 def objective_function(params, K_target, G_target, kappa_inc, mu_inc, kappa_mat, mu_mat, f, R):

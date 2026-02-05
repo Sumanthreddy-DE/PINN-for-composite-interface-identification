@@ -15,14 +15,21 @@ Author: Sumanth Reddy Settipalli
 Date: 2026-02-03 (FIXED VERSION)
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path for standalone execution
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import numpy as np
 import json
-from pathlib import Path
 from typing import List, Dict, Tuple
 from tqdm import tqdm
 import argparse
 
-from extended_interface import compute_effective_properties
+from src.physics.extended_interface import compute_effective_properties
 
 
 def generate_edge_samples_proper(

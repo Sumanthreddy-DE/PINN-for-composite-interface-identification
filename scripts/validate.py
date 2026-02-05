@@ -11,17 +11,27 @@ Workflow:
 4. Use interface params in Extended Interface model
 5. Compare K_eff, G_eff
 
+Usage:
+    python scripts/validate.py
+
 Author: Sumanth Reddy Settipalli
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import torch
 import numpy as np
-from pathlib import Path
 import json
 import matplotlib.pyplot as plt
 
-from models import PINN, InverseMLPModel, get_device
-from extended_interface import compute_effective_properties
+from src.models.pinn import PINN, InverseMLPModel, get_device
+from src.physics.extended_interface import compute_effective_properties
 
 
 def load_model(checkpoint_path: str, model_type: str = 'pinn'):

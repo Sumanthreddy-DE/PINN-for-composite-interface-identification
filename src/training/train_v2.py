@@ -15,7 +15,18 @@ Based on research:
 
 Author: Sumanth Reddy Settipalli
 Date: 2026-02-03
+
+Usage:
+    python -m src.training.train_v2 --epochs 500 --output_dir ./checkpoints/v2
 """
+
+import sys
+from pathlib import Path
+
+# Add project root to path for standalone execution
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 import torch
 import torch.nn as nn
@@ -23,16 +34,15 @@ import torch.optim as optim
 from torch.optim.lr_scheduler import CosineAnnealingLR
 import numpy as np
 import json
-from pathlib import Path
 import argparse
 from datetime import datetime
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from models import PINN
-from data_generator import InterfaceDataset, add_three_layer_data
-from physics_loss import PhysicsLoss
-from extended_interface import compute_effective_properties
+from src.models.pinn import PINN
+from src.data.generator import InterfaceDataset, add_three_layer_data
+from src.physics.physics_loss import PhysicsLoss
+from src.physics.extended_interface import compute_effective_properties
 
 
 class AdaptiveLossWeighter:

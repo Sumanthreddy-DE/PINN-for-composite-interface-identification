@@ -5,11 +5,19 @@ Trains neural networks for interface parameter identification.
 Supports both data-driven MLP and physics-informed PINN.
 
 Usage:
-    python train.py --model mlp --epochs 200
-    python train.py --model pinn --epochs 200 --physics_weight 1.0
+    python -m src.training.train --model mlp --epochs 200
+    python -m src.training.train --model pinn --epochs 200 --physics_weight 1.0
 
 Author: Sumanth Reddy Settipalli
 """
+
+import sys
+from pathlib import Path
+
+# Add project root to path for standalone execution
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
 
 import argparse
 import torch
@@ -17,16 +25,15 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import numpy as np
-from pathlib import Path
 import json
 from datetime import datetime
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 
-from data_generator import create_dataloaders, InterfaceDataset
-from models import InverseMLPModel, PINN, EarlyStopping, get_device
-from physics_loss import PhysicsLoss
-from extended_interface import compute_effective_properties
+from src.data.generator import create_dataloaders, InterfaceDataset
+from src.models.pinn import InverseMLPModel, PINN, EarlyStopping, get_device
+from src.physics.physics_loss import PhysicsLoss
+from src.physics.extended_interface import compute_effective_properties
 
 
 def train_epoch(

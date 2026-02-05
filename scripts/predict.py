@@ -7,30 +7,33 @@ This script tests the PINN model by:
 3. Verifying the predicted parameters produce the same K_eff, G_eff in Extended Interface model
 
 Usage:
-    python test_nn_prediction.py
+    python scripts/predict.py
 
 Author: System Test Script
 """
 
 import sys
-import os
+from pathlib import Path
+
+# Add project root to path
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import numpy as np
 import torch
 from typing import Tuple, Dict, List
 
-# Add current directory to path to find local modules
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from models import PINN
-from extended_interface import compute_effective_properties
-from three_layer_interphase import compute_3layer_properties
+from src.models.pinn import PINN
+from src.physics.extended_interface import compute_effective_properties
+from src.physics.three_layer_interphase import compute_3layer_properties
 
 
 def load_pinn_model(model_path: str = None) -> PINN:
     """Load the trained PINN model (V2 - best model)."""
     if model_path is None:
         # Default to V2 model
-        model_path = os.path.join(os.path.dirname(__file__), 'exp_v2', 'pinn_best.pt')
+        model_path = str(Path(__file__).parent.parent / 'checkpoints' / 'v2' / 'pinn_best.pt')
     
     if not os.path.exists(model_path):
         raise FileNotFoundError(f"Model not found at: {model_path}")
@@ -288,7 +291,7 @@ def main():
     except FileNotFoundError as e:
         print(f"\nError: {e}")
         print("\nPlease ensure the V2 model is trained and saved at:")
-        print("  nn/exp_v2/pinn_best.pt")
+        print("  checkpoints/v2/pinn_best.pt")
         return None
 
 

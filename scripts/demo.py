@@ -11,19 +11,26 @@ Workflow:
 1. Compute K_eff, G_eff from 3-Layer Interphase model
 2. Use PINN to predict interface parameters (k_bar, lambda_bar, mu_bar, alpha)
 3. Verify predicted parameters produce same K_eff, G_eff in Extended Interface model
+
+Usage:
+    python scripts/demo.py
 """
 
 import sys
 import os
+from pathlib import Path
+
+# Add project root to path
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import numpy as np
 import torch
 
-# Add current directory to path
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-
-from models import PINN
-from extended_interface import compute_effective_properties
-from three_layer_interphase import compute_3layer_properties
+from src.models.pinn import PINN
+from src.physics.extended_interface import compute_effective_properties
+from src.physics.three_layer_interphase import compute_3layer_properties
 
 
 def main():
@@ -84,7 +91,7 @@ def main():
     print("=" * 70)
 
     # Load model
-    model_path = os.path.join(os.path.dirname(__file__), 'exp_v2', 'pinn_best.pt')
+    model_path = str(Path(__file__).parent.parent / 'checkpoints' / 'v2' / 'pinn_best.pt')
     print(f"\n  Loading model from: {model_path}")
 
     checkpoint = torch.load(model_path, map_location='cpu', weights_only=False)

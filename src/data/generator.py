@@ -16,15 +16,22 @@ IMPROVEMENTS (2026-02-03):
 Author: Sumanth Reddy Settipalli
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path for standalone execution
+_project_root = Path(__file__).parent.parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
 from typing import Tuple, Optional, Dict
 import json
-from pathlib import Path
 from tqdm import tqdm
 
-from extended_interface import compute_effective_properties
+from src.physics.extended_interface import compute_effective_properties
 
 
 def importance_sample(n_samples: int, low: float, high: float,

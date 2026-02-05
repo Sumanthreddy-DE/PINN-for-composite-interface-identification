@@ -6,25 +6,35 @@ interphase configurations by varying:
 1. Phi ratios (geometry of interphase layers)
 2. Material stiffness ratios
 
+Usage:
+    python scripts/test_phi_variations.py
+
 Author: Sumanth Reddy Settipalli
 Date: 2026-02-03
 """
 
+import sys
+from pathlib import Path
+
+# Add project root to path
+_project_root = Path(__file__).parent.parent
+if str(_project_root) not in sys.path:
+    sys.path.insert(0, str(_project_root))
+
 import torch
 import numpy as np
-from pathlib import Path
 import json
 from typing import List, Dict, Tuple
 import matplotlib.pyplot as plt
 
-from models import PINN
-from extended_interface import compute_effective_properties
-from three_layer_interphase import compute_3layer_properties
+from src.models.pinn import PINN
+from src.physics.extended_interface import compute_effective_properties
+from src.physics.three_layer_interphase import compute_3layer_properties
 
 
 def load_best_model() -> PINN:
-    """Load the best trained PINN model (Experiment 4)."""
-    model_path = Path(__file__).parent / 'exp4_larger_balanced' / 'pinn_best.pt'
+    """Load the best trained PINN model (V2)."""
+    model_path = Path(__file__).parent.parent / 'checkpoints' / 'v2' / 'pinn_best.pt'
 
     if not model_path.exists():
         raise FileNotFoundError(f"Model not found at {model_path}")
