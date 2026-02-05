@@ -1,0 +1,64 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+*.egg-info/
+*.egg
+.eggs/
+dist/
+build/
+
+# Virtual environments
+venv/
+env/
+.venv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Project-specific exclusions
+# ===========================
+
+# Deprecated files (contain fake labels - DO NOT USE)
+edge_samples.json
+train_improved.py
+generate_edge_samples.py
+exp_improved/
+
+# Old experiments (superseded by exp_v2)
+exp1_*/
+exp2_*/
+exp3_*/
+exp_test/
+
+# Intermediate results (can be regenerated)
+results/
+results_pinn/
+test_results/
+test_results_pinn/
+
+# Analysis outputs (can be regenerated)
+*.png
+failure_report.json
+validation_results.json
+phi_variation_results.json
+*_training.log
+
+# Keep these important files (explicit)
+!exp_v2/
+!3layer_data.json
+!edge_samples_proper.json

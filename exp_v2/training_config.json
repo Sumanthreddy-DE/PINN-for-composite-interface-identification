@@ -1,0 +1,30 @@
+{
+  "timestamp": "2026-02-03T20:49:06.531277",
+  "args": {
+    "n_samples": 50000,
+    "three_layer_data": "3layer_data.json",
+    "edge_samples_path": "edge_samples_proper.json",
+    "three_layer_weight": 0.1,
+    "use_cache": true,
+    "use_importance_sampling": false,
+    "edge_weight": 0.15,
+    "hidden_dims": [
+      256,
+      256,
+      256
+    ],
+    "epochs": 500,
+    "batch_size": 256,
+    "lr": 0.001,
+    "physics_weight": 30.0,
+    "K_weight": 1.5,
+    "G_weight": 1.0,
+    "output_dir": "./exp_v2",
+    "seed": 42
+  },
+  "dataset_size": 55500,
+  "best_epoch": 322,
+  "best_val_loss": 1.0991809368133545,
+  "final_K_error": 0.8064508403433592,
+  "final_G_error": 1.001823864389008
+}

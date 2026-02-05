@@ -1,0 +1,43 @@
+# Configuration for PINN Training
+# ================================
+
+# Model Architecture
+model:
+  type: pinn                    # 'mlp' or 'pinn'
+  hidden_dims: [128, 128, 128]  # Hidden layer sizes
+  activation: tanh              # 'tanh', 'relu', 'gelu', 'silu'
+  dropout: 0.0                  # Dropout rate (0 for none)
+
+# Data Generation
+data:
+  n_samples: 20000              # Total dataset size
+  batch_size: 256               # Training batch size
+  seed: 42                      # Random seed
+
+  # Interface parameter ranges
+  param_ranges:
+    k_bar: [1.0, 500.0]         # Normal stiffness [N/m^3]
+    lambda_bar: [0.01, 5.0]     # Tangential Lame [N/m]
+    mu_bar: [0.01, 5.0]         # Tangential shear [N/m]
+    alpha: [0.0, 1.0]           # Position parameter
+
+  # Material property ranges
+  material_ranges:
+    kappa_inc: [0.5, 50.0]      # Inclusion bulk modulus
+    mu_inc: [0.2, 25.0]         # Inclusion shear modulus
+    kappa_mat: [10.0, 30.0]     # Matrix bulk modulus
+    mu_mat: [5.0, 15.0]         # Matrix shear modulus
+    f: [0.1, 0.5]               # Volume fraction
+    sz: [0.001, 0.01]           # Size parameter
+
+# Training
+training:
+  epochs: 200                   # Maximum epochs
+  lr: 0.001                     # Learning rate
+  weight_decay: 0.00001         # L2 regularization
+  patience: 30                  # Early stopping patience
+  physics_weight: 1.0           # Weight for physics loss (PINN only)
+
+# Output
+output:
+  dir: ./results                # Output directory
