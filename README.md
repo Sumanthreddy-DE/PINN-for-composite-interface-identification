@@ -32,13 +32,17 @@ This PINN finds Extended Interface parameters that produce the **same effective 
 
 ## Results
 
+Evaluated on **28 held-out validation configurations** within the parameter ranges below:
+
 | Metric | Value |
 |--------|-------|
-| **Pass Rate** | **100% (28/28)** |
+| Pass rate (error ≤ 5%) | 28 / 28 |
 | K_eff error mean | 1.77% |
 | K_eff error max | 4.87% |
 | G_eff error mean | 1.87% |
 | G_eff error max | 4.94% |
+
+> **Scope:** These results hold inside the validated ranges listed below. Accuracy drops on wider parameter sweeps (larger configuration sets), so the model is calibrated for these ranges rather than generalized beyond them.
 
 ### Validated Parameter Ranges
 
@@ -69,7 +73,7 @@ from src.models.pinn import PINN
 from src.physics.extended_interface import compute_effective_properties
 from src.physics.three_layer_interphase import compute_3layer_properties
 
-# Load V2 model (best performance - 100% pass rate)
+# Load V2 model (best-performing checkpoint)
 checkpoint = torch.load('checkpoints/v2/pinn_best.pt', weights_only=False)
 model = PINN(hidden_dims=(256, 256, 256), norm_params=checkpoint.get('norm_params'))
 model.load_state_dict(checkpoint['model_state_dict'])
@@ -160,7 +164,7 @@ PINN-for-composite-interface-identification/
 |   +-- edge_samples_proper.json     # Edge region samples
 |
 +-- checkpoints/                 # Trained Models
-|   +-- v2/                          # Best model (100% pass rate)
+|   +-- v2/                          # Best model (28/28 on validation set)
 |       +-- pinn_best.pt
 |       +-- pinn_final.pt
 |       +-- training_config.json
@@ -209,12 +213,12 @@ python -m src.training.train_v2 \
 | Edge weight | 30% | 10% (capped) |
 | Loss weighting | Fixed | Adaptive (ReLoBRaLo-inspired) |
 | Gradient clipping | No | Yes |
-| **Pass rate** | 78.6% | **100%** |
+| **Pass rate** (validation set) | 78.6% | 28 / 28 |
 
 ## Key Contributions
 
 1. **First PINN application** for interphase-interface parameter bridging
-2. **100% generalization** across diverse configurations
+2. **Strong accuracy** across the validated configuration range
 3. **Adaptive loss balancing** (ReLoBRaLo-inspired) for stable training
 4. **Physics-constrained learning** embedding Mori-Tanaka BVP equations
 
