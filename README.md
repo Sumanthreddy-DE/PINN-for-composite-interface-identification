@@ -246,4 +246,5 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-*Part of Master's Thesis: Micromechanics-based Homogenization of Composite Materials*
+*Part of Master's Thesis: Micromechanics-based Homogenization of Composite Materials.*
+*Thesis source (LaTeX): [Sumanthreddy-DE/Master-Thesis](https://github.com/Sumanthreddy-DE/Master-Thesis)*
