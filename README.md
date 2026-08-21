@@ -4,53 +4,199 @@
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-**Physics-Informed Neural Network for bridging 3-Layer Interphase and Extended Interface models in composite material homogenization.**
+**Physics-informed neural network that identifies the four parameters of the Extended General Interface Model (EGIM) directly from target effective properties computed via a three-layer interphase model.**
+
+Code accompanying the Master's thesis *"Bridging Interphase and Interface Models for
+Composites"* (Chair of Applied Mechanics, FAU Erlangen-Nürnberg). All numbers below are
+taken from Chapter 4 of the thesis. Thesis source:
+[Sumanthreddy-DE/Master-Thesis](https://github.com/Sumanthreddy-DE/Master-Thesis).
 
 ## Overview
 
-This repository contains the neural network implementation for a Master's thesis on micromechanics-based homogenization of composite materials with interphase/interface effects.
+The mechanical behaviour of a composite depends strongly on the thin **interphase** region
+between inclusion and matrix. Modelling that region explicitly is expensive, so it is
+usually replaced by a **zero-thickness interface** described by a few phenomenological
+parameters. Recovering those parameters from known interphase properties is a non-trivial
+inverse problem — that is what this network solves.
 
-### The Problem
+### The two models
 
-When modeling composite materials (particles embedded in a matrix), the **interphase region** between inclusion and matrix significantly affects overall properties. Two modeling approaches exist:
+1. **Three-layer interphase model** — the interphase is a stack of finite-thickness coating
+   layers, each with its own moduli. Accurate, expensive.
+2. **Extended General Interface Model (EGIM)** — the interphase collapses to a zero-thickness
+   interface carrying four parameters. Cheap, but the parameters are not directly measurable.
 
-1. **3-Layer Interphase Model**: Models interphase as finite-thickness coating layers with distinct material properties
-2. **Extended Interface Model**: Models interphase as zero-thickness interface with parameters (k&#772;, &#955;&#772;, &#956;&#772;, &#945;)
+| EGIM parameter | Meaning |
+|----------------|---------|
+| `k_bar` (k̄) | Interface normal stiffness |
+| `lambda_bar` (λ̄) | Surface Lamé parameter |
+| `mu_bar` (μ̄) | Surface shear modulus |
+| `alpha_bar` (ᾱ) | Distance (interface position) parameter, ∈ [0, 1] |
 
-### Solution: PINN Bridge
+### The bridge
 
-This PINN finds Extended Interface parameters that produce the **same effective properties** (K_eff, G_eff) as a given 3-Layer configuration:
+The inverse PINN takes the effective moduli produced by the three-layer model and predicts
+the EGIM parameters that reproduce them. A physics-informed loss passes the prediction back
+through the EGIM forward model at every training step, so the network is scored on whether
+it actually reconstructs the target properties — not merely on parameter regression.
 
 ```
 +------------------------+         +----------+         +------------------------+
-|  3-Layer Interphase    |         |          |         |  Extended Interface    |
-|  Model                 |-------->|   PINN   |-------->|  Model                 |
+|  3-Layer Interphase    |         |          |         |  Extended General      |
+|  Model                 |-------->|   PINN   |-------->|  Interface Model       |
 |  K_eff, G_eff          |         |          |         |  k_bar, lambda_bar,    |
-+------------------------+         +----------+         |  mu_bar, alpha         |
++------------------------+         +----------+         |  mu_bar, alpha_bar     |
                                                         +------------------------+
 ```
 
+This repository covers the **CSA geometry** (particle-reinforced / spherical composites),
+which is the case where the bridge works. The CCA geometry (fibre-reinforced) is covered in
+the thesis and fails structurally — see [Scope and limitations](#scope-and-limitations).
+
+## Model
+
+Shared architecture for both geometries (thesis §3, *Inverse Parameter Identification
+Network*):
+
+| Aspect | Value |
+|--------|-------|
+| Hidden layers | 3 x 256, tanh activation |
+| Initialisation | Xavier normal |
+| Parameters | ~135,000 |
+| Inputs (CSA) | Target `K_eff`, `G_eff` + constituent moduli (κ⁽¹⁾, μ⁽¹⁾, κ⁽²⁾, μ⁽²⁾) + volume fraction `f` + inclusion radius |
+| Outputs | `k_bar`, `lambda_bar`, `mu_bar`, `alpha_bar` |
+
+Physical constraints are enforced on the output layer rather than through penalties:
+
+- **softplus** on `lambda_bar` and `mu_bar` — non-negativity of surface elastic moduli
+- **exponential**, clamped to [-2, 8.5] → `k_bar` ∈ [1, 5000] — spans several orders of magnitude
+- **sigmoid** on `alpha_bar` — bounds it to [0, 1]
+
+Tanh is used because the targets are bounded and continuous; it is smooth everywhere and
+zero-centred, which suits both gradient flow and the bounded output space.
+
+### Loss
+
+```
+L = w_data * L_data + w_phys * L_phys
+```
+
+`L_data` is an MSE on the interface parameters (with `k_bar` scaled down by 1000 to balance
+its magnitude). `L_phys` is the relative reconstruction error after passing the prediction
+through the EGIM forward model:
+
+```
+L_phys = (1/N) * sum_i [ w_K * ((K_pred - K_tgt) / K_tgt)^2
+                       + w_G * ((G_pred - G_tgt) / G_tgt)^2 ]
+```
+
+with `w_K = 1.5`, `w_G = 1.0`. The two terms are balanced adaptively using a
+ReLoBRaLo-inspired scheme (Bischof & Kraus, 2021), with the adaptive weights capped at 150
+for `w_phys` and 5 for `w_data`.
+
 ## Results
 
-Evaluated on **28 held-out validation configurations** within the parameter ranges below:
+Chapter 4 of the thesis evaluates the CSA inverse PINN four ways: two sets of hand-picked
+worked examples, a broad random test, and a structured parameter sweep. All four are given
+below.
 
-| Metric | Value |
-|--------|-------|
-| Pass rate (error ≤ 5%) | 28 / 28 |
-| K_eff error mean | 1.77% |
-| K_eff error max | 4.87% |
-| G_eff error mean | 1.87% |
-| G_eff error max | 4.94% |
+### 1. Worked examples — soft particle (SR = 0.25, f = 0.3)
 
-> **Scope:** These results hold inside the validated ranges listed below. Accuracy drops on wider parameter sweeps (larger configuration sets), so the model is calibrated for these ranges rather than generalized beyond them.
+κ⁽¹⁾ = 5, μ⁽¹⁾ = 3, κ⁽²⁾ = 20, μ⁽²⁾ = 12, layer thickness ratios φ = (0.2, 0.3, 0.4).
 
-### Validated Parameter Ranges
+| Case | κ: particle → coatings → matrix | K_tgt | K_pred | K err | G_tgt | G_pred | G err |
+|------|--------------------------------|-------|--------|-------|-------|--------|-------|
+| 1 | 5 → 18.5, 19.3, 19.7 → 20 | 19.651 | 19.335 | 1.61% | 11.957 | 11.915 | 0.35% |
+| 2 | 5 → 8.75, 12.5, 16.3 → 20 | 17.895 | 17.881 | 0.08% | 11.919 | 11.354 | 4.74% |
+| 3 | 5 → 5.75, 7.25, 8.75 → 20 | 15.234 | 15.735 | 3.29% | 11.286 | 10.080 | **10.68%** |
+| 4 | 5 → 100, 10, 1 → 20 | 11.687 | 12.559 | **7.47%** | 12.286 | 8.177 | **33.44%** |
+| 5 | 5 → 1, 10, 100 → 20 | 25.085 | 31.028 | **23.69%** | 21.751 | 19.398 | **10.81%** |
+
+Cases 1–3 are interpolated coatings (properties between particle and matrix); **two of the
+three pass the 5% threshold**. Case 3 fails because the coating sits very close to the
+particle, creating a sharp stiffness jump at the coating–matrix boundary that a
+zero-thickness interface struggles to represent. Cases 4–5 are out-of-distribution coatings
+(κ = 100, beyond both constituents) and fail badly.
+
+### 2. Worked examples — stiff particle (SR = 2.0, f = 0.3)
+
+κ⁽¹⁾ = 40, μ⁽¹⁾ = 24, κ⁽²⁾ = 20, μ⁽²⁾ = 12, same f and layer thicknesses.
+
+| Case | κ: particle → coatings → matrix | K_tgt | K_pred | K err | G_tgt | G_pred | G err |
+|------|--------------------------------|-------|--------|-------|-------|--------|-------|
+| 1 | 40 → 22.0, 21.0, 20.4 → 20 | 20.304 | 20.287 | 0.08% | 12.085 | 12.087 | 0.01% |
+| 2 | 40 → 35.0, 30.0, 25.0 → 20 | 21.951 | 21.913 | 0.17% | 12.686 | 12.514 | 1.35% |
+| 3 | 40 → 39.0, 37.0, 35.0 → 20 | 23.667 | 23.629 | 0.16% | 14.083 | 14.087 | 0.03% |
+| 4 | 40 → 100, 10, 1 → 20 | 11.690 | 10.188 | **12.85%** | 1.807 | 6.528 | **261.31%** |
+| 5 | 40 → 1, 10, 100 → 20 | 25.096 | 26.537 | **5.74%** | 16.712 | 16.226 | 2.91% |
+
+All three interpolated cases pass comfortably (largest error 1.35%). The out-of-distribution
+cases fail in the same pattern as above — Case 4 produces a G_eff error above **260%**.
+
+**Takeaway from both tables:** the failure mode is *data coverage*, not model structure. For
+in-distribution configurations the EGIM is structurally adequate for spherical composites and
+the PINN learns an accurate inverse mapping. It does not extrapolate to coatings stiffer or
+softer than both constituents.
+
+### 3. Broad statistical validation — 500 random configurations
+
+500 three-layer configurations drawn at random from the training parameter space, pushed
+through the PINN, then forward-evaluated through the EGIM:
+
+| Metric | K_eff | G_eff |
+|--------|-------|-------|
+| Median error | 1.4% | 4.0% |
+| Mean error | 4.2% | 10.0% |
+| Pass rate (error ≤ 5%) | **82%** | **56%** |
+
+> Bulk modulus reconstruction is reliable across the parameter space. The shear modulus is
+> the harder target: its *median* error sits below the 5% threshold, so most randomly sampled
+> configurations do predict well — but **44% of draws still miss it**. The outliers correspond
+> to extreme stiffness ratios and unusual interphase profiles near the boundaries of the
+> training domain.
+>
+> This is the honest generalization number for the model. Treat it as calibrated for a region
+> of the parameter space, not general across it.
+
+### 4. Structured parameter sweep — 36 configurations
+
+A 6x6 grid over stiffness ratio SR ∈ {0.1, 0.25, 0.5, 1.0, 1.5, 2.0} and volume fraction
+f ∈ {0.05, 0.10, 0.20, 0.30, 0.40, 0.50}, with interphase geometry fixed at
+φ = (0.2, 0.3, 0.4) and grading weights (0.75, 0.50, 0.25):
+
+- **33 / 36** configurations pass the 5% threshold for *both* K_eff and G_eff.
+- The 3 failures all occur at **SR = 0.1 with f ≥ 0.30** — inclusion much softer than matrix,
+  where the interphase grading dominates the effective response.
+- Outside that corner, errors stay well below 2% for both moduli.
+
+### Training parameter ranges
+
+The network is only expected to hold inside these ranges. Constituent properties are sampled
+uniformly; the ranges are chosen so the stiffness ratio SR = κ⁽¹⁾/κ⁽²⁾ spans well below 1
+(soft particle in stiff matrix) through well above 1 (stiff particle in soft matrix).
 
 | Parameter | Range |
 |-----------|-------|
-| Volume fraction (f) | 0.1 - 0.5 |
-| Stiffness ratio (SR) | 0.05 - 5.0 |
-| Phi values | 0.05 - 0.9 |
+| κ⁽¹⁾ (particle bulk modulus) | 0.5 – 100 |
+| μ⁽¹⁾ (particle shear modulus) | 0.5 – 50 |
+| κ⁽²⁾ (matrix bulk modulus) | 5 – 100 |
+| μ⁽²⁾ (matrix shear modulus) | 2 – 50 |
+| Volume fraction (f) | 0.1 – 0.5 |
+| Layer thickness ratios (φ) | 0.05 – 0.9 |
+
+## Scope and limitations
+
+- **Out-of-distribution coatings are not recovered.** Interphase stiffness profiles lying
+  outside both constituents fail, sometimes catastrophically (261% G_eff error). This is a
+  data-coverage limit, not a structural one.
+- **G_eff is the weak axis.** 56% pass rate on random draws vs 82% for K_eff.
+- **Fibre composites (CCA) fail structurally — not included here.** In the thesis, the same
+  approach applied to the CCA geometry cannot reproduce the transverse shear modulus G_tr at
+  all: only 2% of 500 random configurations pass the 5% threshold, with a mean error of 23%.
+  A per-configuration differential-evolution optimiser — free to fit each case independently
+  — leaves the same ~23% gap, and a 36-point SR-vs-f sweep passes in only 3 cases, all at
+  SR = 0.1 with f ≤ 0.10. The limitation is in the zero-thickness interface model itself,
+  not in the network. See thesis Chapter 4. The `cca/` directory here is a placeholder only.
 
 ## Installation
 
@@ -133,7 +279,7 @@ PINN-for-composite-interface-identification/
 |   +-- __init__.py
 |   |
 |   +-- physics/                 # Physics Models
-|   |   +-- extended_interface.py    # Extended Interface (CSA) - Mori-Tanaka
+|   |   +-- extended_interface.py    # Extended General Interface Model (CSA) - Mori-Tanaka
 |   |   +-- three_layer_interphase.py # 3-Layer Interphase (CSA)
 |   |   +-- physics_loss.py          # BVP constraints for PINN
 |   |
@@ -164,7 +310,7 @@ PINN-for-composite-interface-identification/
 |   +-- edge_samples_proper.json     # Edge region samples
 |
 +-- checkpoints/                 # Trained Models
-|   +-- v2/                          # Best model (28/28 on validation set)
+|   +-- v2/                          # Best model (used for all reported results)
 |       +-- pinn_best.pt
 |       +-- pinn_final.pt
 |       +-- training_config.json
@@ -172,9 +318,9 @@ PINN-for-composite-interface-identification/
 |
 +-- experiments/                 # Archived Experiments
 |   +-- archive/
-|       +-- exp4_larger_balanced/    # Previous best (78.6%)
+|       +-- exp4_larger_balanced/    # Earlier training run, superseded by v2
 |
-+-- cca/                         # Future: Fiber Composites
++-- cca/                         # Fiber Composites (see Scope and limitations)
     +-- README.md                    # Placeholder
 ```
 
@@ -190,7 +336,39 @@ PINN-for-composite-interface-identification/
 
 ## Training
 
-### Train V2 Model (Recommended)
+Because only two effective moduli (`K_eff`, `G_eff`) are available to recover four interface
+parameters, the CSA training set deliberately combines three sources (thesis §3, *CSA
+training considerations*):
+
+| Source | Count | Purpose |
+|--------|-------|---------|
+| EGIM-generated samples | 100,000 | Cover the full parameter space |
+| Edge samples | 5,000 | Concentrated near extreme stiffness ratios and volume fractions |
+| 3-layer interphase samples | 500 | Anchor the network to the actual deployment domain |
+
+The third source matters most: it exposes the network to the real interphase-to-interface
+mapping during training instead of relying purely on EGIM-generated data.
+
+### Hyperparameters
+
+| Setting | Value |
+|---------|-------|
+| Optimiser | AdamW, lr = 1e-3, weight decay = 1e-4 |
+| Schedule | Cosine annealing |
+| Epochs | 500 (best validation loss at epoch 322) |
+| Batch size | 256 |
+| Gradient clipping | Norm 1.0 |
+| Loss weights | `w_K` = 1.5, `w_G` = 1.0 |
+| Adaptive weight caps | `w_phys` ≤ 150, `w_data` ≤ 5 |
+
+Full run completes in under one hour on a single CPU core.
+
+> **Note on sample count:** the thesis states 100,000 EGIM samples, whereas the shipped
+> checkpoint's `checkpoints/v2/training_config.json` records `n_samples: 50000` and
+> `dataset_size: 55500`. Both report `best_epoch: 322`, so this is the same run and the
+> discrepancy is unresolved. The command below reproduces the shipped checkpoint.
+
+### Train V2 Model
 
 ```bash
 # Step 1: Generate edge samples (optional - already included)
@@ -213,30 +391,48 @@ python -m src.training.train_v2 \
 | Edge weight | 30% | 10% (capped) |
 | Loss weighting | Fixed | Adaptive (ReLoBRaLo-inspired) |
 | Gradient clipping | No | Yes |
-| **Pass rate** (validation set) | 78.6% | 28 / 28 |
+
+V2 is the checkpoint behind every number in the [Results](#results) section. The original run
+is kept in `experiments/archive/` for reference only; it was evaluated under an earlier
+protocol and its numbers are not comparable to the ones above.
 
 ## Key Contributions
 
-1. **First PINN application** for interphase-interface parameter bridging
-2. **Strong accuracy** across the validated configuration range
-3. **Adaptive loss balancing** (ReLoBRaLo-inspired) for stable training
-4. **Physics-constrained learning** embedding Mori-Tanaka BVP equations
+1. **Inverse PINN bridging the two models.** A network that recovers EGIM interface
+   parameters from three-layer interphase effective properties, with the forward model
+   embedded in the loss so predictions are physically self-consistent.
+2. **Reliable reconstruction inside the calibrated region** — 33/36 on the structured
+   SR-vs-f sweep, with the failure corner (SR = 0.1, f ≥ 0.30) identified and characterised
+   rather than hidden.
+3. **Adaptive loss balancing** (ReLoBRaLo-inspired) that keeps the data and physics terms
+   from dominating one another during training.
+4. **Quantification of the interface–interphase gap.** Establishing that for fibre composites
+   the zero-thickness approximation cannot represent transverse shear at all — a negative
+   result confirmed independently by a per-configuration optimiser.
 
 ## References
 
-- Firooz, S. et al. (2022). Extended general interfaces: Mori-Tanaka homogenization. *Int. J. Solids Structures*
-- Raissi, M. et al. (2019). Physics-informed neural networks. *J. Computational Physics*
+- Firooz, S., Chatzigeorgiou, G., Steinmann, P., Javili, A. (2022). Extended general interfaces: Mori-Tanaka homogenization and average fields. *International Journal of Solids and Structures*, 254–255, 111933.
+- Firooz, S., Steinmann, P., Javili, A. (2021). Homogenization of composites with extended general interfaces: Comprehensive review and unified modeling. *Applied Mechanics Reviews*, 73(4), 040802.
+- Raissi, M., Perdikaris, P., Karniadakis, G. E. (2019). Physics-informed neural networks. *Journal of Computational Physics*, 378, 686–707.
+- Bischof, R., Kraus, M. (2021). Multi-objective loss balancing for physics-informed deep learning (ReLoBRaLo). *arXiv:2110.09813*.
+- Krishnapriyan, A. S. et al. (2021). Characterizing possible failure modes in physics-informed neural networks. *NeurIPS*, 34, 26548–26560.
+- Loshchilov, I., Hutter, F. (2019). Decoupled weight decay regularization (AdamW). *ICLR*.
+- Loshchilov, I., Hutter, F. (2017). SGDR: Stochastic gradient descent with warm restarts. *ICLR*.
+- Glorot, X., Bengio, Y. (2010). Understanding the difficulty of training deep feedforward neural networks. *AISTATS*, 249–256.
 
 ## Citation
 
 If you use this code, please cite:
 
 ```bibtex
-@thesis{settipalli2026pinn,
-  title={Physics-Informed Neural Networks for Composite Interface Parameter Identification},
-  author={Settipalli, Sumanth Reddy},
-  year={2026},
-  school={University}
+@mastersthesis{settipalli2026bridging,
+  title  = {Bridging Interphase and Interface Models for Composites},
+  author = {Settipalli, Sumanth Reddy},
+  year   = {2026},
+  school = {Friedrich-Alexander-Universit\"{a}t Erlangen-N\"{u}rnberg},
+  type   = {Master's thesis},
+  note   = {Chair of Applied Mechanics (LTM)}
 }
 ```
 
@@ -246,5 +442,6 @@ MIT License - See [LICENSE](LICENSE) for details.
 
 ---
 
-*Part of Master's Thesis: Micromechanics-based Homogenization of Composite Materials.*
+*Master's Thesis: "Bridging Interphase and Interface Models for Composites" — Parameter
+Identification in Mechanical Problems. Chair of Applied Mechanics, FAU Erlangen-Nürnberg.*
 *Thesis source (LaTeX): [Sumanthreddy-DE/Master-Thesis](https://github.com/Sumanthreddy-DE/Master-Thesis)*
