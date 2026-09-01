@@ -2,7 +2,7 @@
 
 [![Python](https://img.shields.io/badge/Python-3.8+-blue.svg)](https://www.python.org/)
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.0+-red.svg)](https://pytorch.org/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/License-Apache_2.0-green.svg)](LICENSE)
 
 **Physics-informed neural network that identifies the four parameters of the Extended General Interface Model (EGIM) directly from target effective properties computed via a three-layer interphase model.**
 
@@ -271,7 +271,7 @@ python scripts/demo.py
 PINN-for-composite-interface-identification/
 |
 +-- README.md                    # This file
-+-- LICENSE                      # MIT License
++-- LICENSE                      # Apache 2.0 License
 +-- requirements.txt             # Python dependencies
 +-- config.yaml                  # Default training configuration
 |
@@ -438,7 +438,7 @@ If you use this code, please cite:
 
 ## License
 
-MIT License - See [LICENSE](LICENSE) for details.
+Apache License 2.0. See [LICENSE](LICENSE) for details.
 
 ---
 
